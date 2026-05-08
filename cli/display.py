@@ -1,11 +1,24 @@
 from __future__ import annotations
 
-from rich.console import Console, RenderableType
+from pathlib import Path
+
+from rich.console import RenderableType
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.text import Text
 
-console = Console()
+_TIFA_ANS_PATH = Path(__file__).resolve().parent / "tifa.ans"
+
+
+def _load_tifa_art() -> str:
+    if _TIFA_ANS_PATH.exists():
+        return _TIFA_ANS_PATH.read_text()
+    return "TifaCode"
+
+
+def render_splash() -> str:
+    """返回可直接打印的 ANSI 字符串（不含 Panel 包裹，保留原始颜色）。"""
+    return _load_tifa_art()
 
 
 def render_markdown(text: str) -> Markdown:

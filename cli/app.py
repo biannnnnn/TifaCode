@@ -1,9 +1,17 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 import sys
 from typing import Any
+
+try:
+    import gnureadline as readline  # macOS: 替换 libedit，修复 CJK 退格显示 bug
+except ImportError:
+    pass
+
+from prompt_toolkit import PromptSession
+from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.styles import Style
 
 from rich.console import Console
 from rich.live import Live
@@ -14,10 +22,44 @@ from rich.text import Text
 from tifacode.agent.backend import create_backend
 from tifacode.agent.loop import AgentCallbacks, create_default_registry, run_agent_loop
 from tifacode.agent.messages import Conversation
+from tifacode.cli.display import render_splash
 from tifacode.config.settings import Settings
 from tifacode.session.store import SessionStore
 
 logger = logging.getLogger(__name__)
+
+
+_PT_STYLE = Style.from_dict({
+    "prompt": "bold green",
+    "bottom-toolbar": "dim italic",
+})
+
+
+def _create_pt_session() -> PromptSession:
+    bindings = KeyBindings()
+
+    @bindings.add("enter")
+    def _(event: Any) -> None:
+        """Enter 发送当前输入。"""
+        event.app.exit(result=event.app.current_buffer.text)
+
+    @bindings.add("c-j")
+    def _(event: Any) -> None:
+        """Ctrl+J 换行。"""
+        event.app.current_buffer.insert_text("\n")
+
+    @bindings.add("c-c")
+    def _(event: Any) -> None:
+        """Ctrl+C 取消当前输入。"""
+        event.app.exit(result=None)
+
+    return PromptSession(
+        multiline=True,
+        key_bindings=bindings,
+        style=_PT_STYLE,
+        bottom_toolbar=" Enter 发送  |  Ctrl+J 换行  |  Ctrl+C 取消  |  输入 exit 退出 ",
+        wrap_lines=False,
+    )
 
 
 class CLICallbacks(AgentCallbacks):
@@ -82,19 +124,39 @@ async def run_interactive(settings: Settings, session_name: str) -> None:
     backend = create_backend(settings)
     registry = create_default_registry()
 
-    console.print(Panel("TifaCode — Coding Agent CLI", border_style="blue"))
-    console.print("输入消息开始对话，/help 查看帮助，/exit 退出\n")
+    # ANSI splash 直接写入 stdout，避免 Rich 处理
+    sys.stdout.write(render_splash() + "\n")
+    sys.stdout.flush()
+    console.print()
+
+    pt_session = _create_pt_session()
 
     while True:
+        # 顶部边框
+        w = console.width
+        console.print("┌" + "─" * (w - 2) + "┐", style="dim")
+
         try:
-            user_input = console.input("[bold green]> [/bold green]")
+            user_input = await pt_session.prompt_async(
+                [("class:prompt", "> ")],
+            )
         except (EOFError, KeyboardInterrupt):
             console.print("\n[dim]再见[/dim]")
             break
 
+        # 底部边框
+        console.print("└" + "─" * (w - 2) + "┘", style="dim")
+
+        if user_input is None:  # Ctrl+C 取消
+            continue
+
         user_input = user_input.strip()
         if not user_input:
             continue
+
+        if user_input.lower() == "exit":
+            console.print("[dim]再见[/dim]")
+            break
 
         if user_input.startswith("/"):
             _handle_slash_command(user_input, console)
@@ -130,6 +192,11 @@ async def run_single_shot(settings: Settings, prompt: str, session_name: str) ->
     conversation.add_user(prompt)
     backend = create_backend(settings)
     registry = create_default_registry()
+
+    # ANSI splash 直接写入 stdout，避免 Rich 处理
+    sys.stdout.write(render_splash() + "\n")
+    sys.stdout.flush()
+    console.print()
 
     with Live(Text("思考中..."), console=console, refresh_per_second=10, transient=False) as live:
         callbacks = CLICallbacks(live, console)

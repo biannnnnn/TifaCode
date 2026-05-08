@@ -13,9 +13,20 @@ SESSION_DIR = CONFIG_DIR / "sessions"
 
 
 def _load_dotenv() -> None:
-    """从项目根目录加载 .env 文件中的环境变量（不覆盖已设置的）。"""
-    env_file = Path(".env")
-    if not env_file.is_file():
+    """加载 .env 文件中的环境变量（不覆盖已设置的）。
+    按优先级查找：当前工作目录 > 用户 home 目录 > 包根目录。
+    """
+    candidates = [
+        Path(".env"),
+        Path.home() / ".tifacode" / ".env",
+        Path(__file__).resolve().parent.parent / ".env",
+    ]
+    env_file = None
+    for c in candidates:
+        if c.is_file():
+            env_file = c
+            break
+    if env_file is None:
         return
     for line in env_file.read_text(encoding="utf-8").splitlines():
         line = line.strip()
