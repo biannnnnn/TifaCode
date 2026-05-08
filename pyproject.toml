@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tifacode"
+version = "0.1.0"
+description = "TifaCode: 面向 Harness Engineering 的轻量级本地 Coding Agent CLI"
+requires-python = ">=3.9"
+dependencies = [
+    "anthropic>=0.39.0",
+    "openai>=1.60.0",
+    "rich>=13.0.0",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+tifacode = "tifacode.main:main"
+
