@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from tifacode.tools.base import Tool
+from tifacode.tools.base import Tool, ToolResult
 
 
 class ReadTool(Tool):
@@ -25,17 +25,22 @@ class ReadTool(Tool):
         },
     }
 
-    async def execute(self, file_path: str, offset: int = 0, limit: int = 0, **kwargs: Any) -> str:
+    async def execute(self, file_path: str, offset: int = 0, limit: int = 0, **kwargs: Any) -> ToolResult:
         p = Path(file_path)
         if not p.exists():
-            return f"错误：文件不存在 '{file_path}'"
+            return ToolResult.fail(f"文件不存在 '{file_path}'", error_code="file_not_found", file_path=file_path)
         if not p.is_file():
-            return f"错误：路径不是文件 '{file_path}'"
+            return ToolResult.fail(f"路径不是文件 '{file_path}'", error_code="not_file", file_path=file_path)
 
         try:
             lines = p.read_text(encoding="utf-8").splitlines()
         except Exception as e:
-            return f"读取文件出错：{e}"
+            return ToolResult.fail(
+                f"读取文件出错：{e}",
+                error_code="read_error",
+                file_path=file_path,
+                exception_type=type(e).__name__,
+            )
 
         total = len(lines)
         start = max(0, offset - 1) if offset > 0 else 0
@@ -45,4 +50,10 @@ class ReadTool(Tool):
         output: list[str] = []
         for i, line in enumerate(selected, start=start + 1):
             output.append(f"{i}\t{line}")
-        return "\n".join(output)
+        return ToolResult.ok(
+            "\n".join(output),
+            file_path=file_path,
+            total_lines=total,
+            start_line=start + 1,
+            returned_lines=len(selected),
+        )

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Awaitable
+from typing import Any
 
 from tifacode.agent.backend import BackendAdapter, Done, Event, ReasoningDelta, TextDelta, ToolUse, create_backend
 from tifacode.agent.messages import Conversation
+from tifacode.agent.tool_log import record_tool_call
 from tifacode.config.settings import Settings
 from tifacode.tools.base import ToolRegistry
+from tifacode.tools.base import ToolResult
 from tifacode.tools.bash import BashTool
 from tifacode.tools.edit import EditTool
 from tifacode.tools.read import ReadTool
@@ -105,12 +107,40 @@ async def run_agent_loop(
                 command = tu.input.get("command", "")
                 allowed = await callbacks.on_confirm_bash(command)
                 if not allowed:
-                    conversation.add_tool_result(tu.id, "用户拒绝了此命令的执行")
+                    result = ToolResult.fail("用户拒绝了此命令的执行", error_code="permission_denied", command=command)
+                    result_text = result.to_text(settings.tool_output_limit)
+                    record_tool_call(
+                        settings,
+                        turn=turn,
+                        tool_use_id=tu.id,
+                        name=tu.name,
+                        tool_input=tu.input,
+                        result=result,
+                        rendered_text=result_text,
+                    )
+                    conversation.add_tool_result(tu.id, result_text)
+                    await callbacks.on_tool_result(tu.name, result_text)
                     continue
 
             result = await registry.execute(tu.name, tu.input)
-            conversation.add_tool_result(tu.id, result)
-            await callbacks.on_tool_result(tu.name, result)
+            result_text = result.to_text(settings.tool_output_limit)
+            record_tool_call(
+                settings,
+                turn=turn,
+                tool_use_id=tu.id,
+                name=tu.name,
+                tool_input=tu.input,
+                result=result,
+                rendered_text=result_text,
+            )
+            logger.info(
+                "工具执行完成: name=%s success=%s metadata=%s",
+                tu.name,
+                result.success,
+                result.metadata,
+            )
+            conversation.add_tool_result(tu.id, result_text)
+            await callbacks.on_tool_result(tu.name, result_text)
 
         await callbacks.on_turn_end(turn)
 

@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import asyncio
+import logging
+import random
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, Union
 
 from tifacode.config.settings import Settings
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -34,8 +39,37 @@ Event = Union[TextDelta, ReasoningDelta, ToolUse, Done]
 
 
 class BackendAdapter(ABC):
-    @abstractmethod
+    def _configure_retry(self, settings: Settings) -> None:
+        self._retry_attempts = max(1, settings.retry_attempts)
+        self._retry_initial_delay = max(0.0, settings.retry_initial_delay)
+        self._retry_max_delay = max(self._retry_initial_delay, settings.retry_max_delay)
+
     async def stream(
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
+    ) -> AsyncIterator[Event]:
+        attempts = getattr(self, "_retry_attempts", 1)
+        initial_delay = getattr(self, "_retry_initial_delay", 0.0)
+        max_delay = getattr(self, "_retry_max_delay", initial_delay)
+
+        for attempt in range(1, attempts + 1):
+            emitted = False
+            try:
+                async for event in self._stream_once(messages, tools):
+                    emitted = True
+                    yield event
+                return
+            except Exception:
+                if emitted or attempt >= attempts:
+                    raise
+                delay = min(max_delay, initial_delay * (2 ** (attempt - 1)))
+                delay *= random.uniform(0.75, 1.25)
+                logger.warning("LLM 请求失败，%.2f 秒后重试 (%s/%s)", delay, attempt + 1, attempts)
+                logger.debug("LLM 请求失败详情", exc_info=True)
+                if delay > 0:
+                    await asyncio.sleep(delay)
+
+    @abstractmethod
+    async def _stream_once(
         self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
     ) -> AsyncIterator[Event]:
         ...
@@ -48,8 +82,9 @@ class AnthropicBackend(BackendAdapter):
         self._client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
         self._model = settings.model
         self._max_turns = settings.max_turns
+        self._configure_retry(settings)
 
-    async def stream(
+    async def _stream_once(
         self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
     ) -> AsyncIterator[Event]:
         import anthropic.types as at
@@ -103,6 +138,7 @@ class OpenAIBackend(BackendAdapter):
         self._client = openai.AsyncOpenAI(api_key=settings.openai_api_key)
         self._model = settings.model
         self._max_turns = settings.max_turns
+        self._configure_retry(settings)
 
     @staticmethod
     def _convert_tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -118,7 +154,7 @@ class OpenAIBackend(BackendAdapter):
             for t in tools
         ]
 
-    async def stream(
+    async def _stream_once(
         self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
     ) -> AsyncIterator[Event]:
         kwargs: dict[str, Any] = {
@@ -190,6 +226,7 @@ class DeepSeekBackend(OpenAIBackend):
         )
         self._model = settings.model
         self._max_turns = settings.max_turns
+        self._configure_retry(settings)
 
 
 def create_backend(settings: Settings) -> BackendAdapter:

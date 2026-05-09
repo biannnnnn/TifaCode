@@ -10,6 +10,7 @@ import yaml
 CONFIG_DIR = Path.home() / ".tifacode"
 CONFIG_FILE = CONFIG_DIR / "config.yaml"
 SESSION_DIR = CONFIG_DIR / "sessions"
+TOOL_LOG_FILE = CONFIG_DIR / "tool_calls.jsonl"
 
 
 def _load_dotenv() -> None:
@@ -54,6 +55,13 @@ class Settings:
     api_key: str = ""
     max_turns: int = 25
     bash_timeout: int = 120
+    tool_output_limit: int = 20000
+    retry_attempts: int = 3
+    retry_initial_delay: float = 0.5
+    retry_max_delay: float = 8.0
+    tool_log_enabled: bool = True
+    tool_log_file: str = ""
+    tool_log_input_limit: int = 4000
 
     def __post_init__(self) -> None:
         if not self.model:
@@ -63,6 +71,10 @@ class Settings:
         self.provider = provider
         if reset_model:
             self.model = DEFAULT_MODELS.get(provider, "gpt-4o")
+
+    @property
+    def resolved_tool_log_file(self) -> Path:
+        return Path(self.tool_log_file).expanduser() if self.tool_log_file else TOOL_LOG_FILE
 
     @property
     def anthropic_api_key(self) -> str:
@@ -82,6 +94,16 @@ def _load_config_file() -> dict[str, Any]:
         with open(CONFIG_FILE) as f:
             return yaml.safe_load(f) or {}
     return {}
+
+
+def _as_bool(value: Any, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return default
+    if isinstance(value, str):
+        return value.strip().lower() in ("1", "true", "yes", "y", "on")
+    return bool(value)
 
 
 PROVIDER_ENV = {
@@ -111,5 +133,12 @@ def load_settings() -> Settings:
         "api_key": file_cfg.get("api_key", ""),
         "max_turns": int(file_cfg.get("max_turns", 25)),
         "bash_timeout": int(file_cfg.get("bash_timeout", 120)),
+        "tool_output_limit": int(file_cfg.get("tool_output_limit", 20000)),
+        "retry_attempts": int(file_cfg.get("retry_attempts", 3)),
+        "retry_initial_delay": float(file_cfg.get("retry_initial_delay", 0.5)),
+        "retry_max_delay": float(file_cfg.get("retry_max_delay", 8.0)),
+        "tool_log_enabled": _as_bool(file_cfg.get("tool_log_enabled"), True),
+        "tool_log_file": file_cfg.get("tool_log_file", ""),
+        "tool_log_input_limit": int(file_cfg.get("tool_log_input_limit", 4000)),
     }
     return Settings(**merged)

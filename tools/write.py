@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from tifacode.tools.base import Tool
+from tifacode.tools.base import Tool, ToolResult
 
 
 class WriteTool(Tool):
@@ -20,12 +20,22 @@ class WriteTool(Tool):
         },
     }
 
-    async def execute(self, file_path: str, content: str, **kwargs: Any) -> str:
+    async def execute(self, file_path: str, content: str, **kwargs: Any) -> ToolResult:
         p = Path(file_path)
         try:
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text(content, encoding="utf-8")
             size = len(content.encode("utf-8"))
-            return f"已写入 {p} ({len(content)} 字符, {size} 字节)"
+            return ToolResult.ok(
+                f"已写入 {p} ({len(content)} 字符, {size} 字节)",
+                file_path=str(p),
+                chars=len(content),
+                bytes=size,
+            )
         except Exception as e:
-            return f"写入文件出错：{e}"
+            return ToolResult.fail(
+                f"写入文件出错：{e}",
+                error_code="write_error",
+                file_path=file_path,
+                exception_type=type(e).__name__,
+            )

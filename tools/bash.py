@@ -4,7 +4,7 @@ import asyncio
 import os
 from typing import Any
 
-from tifacode.tools.base import Tool
+from tifacode.tools.base import Tool, ToolResult
 
 DANGEROUS_PATTERNS = [
     "rm -rf /",
@@ -48,11 +48,16 @@ class BashTool(Tool):
         self._permission_check = permission_check
         self._default_timeout = default_timeout
 
-    async def execute(self, command: str, timeout: int | None = None, **kwargs: Any) -> str:
+    async def execute(self, command: str, timeout: int | None = None, **kwargs: Any) -> ToolResult:
         timeout = timeout or self._default_timeout
         dangerous = is_dangerous(command)
         if dangerous:
-            return f"安全拦截：命令包含危险模式 '{dangerous}'，已拒绝执行"
+            return ToolResult.fail(
+                f"安全拦截：命令包含危险模式 '{dangerous}'，已拒绝执行",
+                error_code="dangerous_command",
+                command=command,
+                dangerous_pattern=dangerous,
+            )
 
         cwd = os.getcwd()
         try:
@@ -73,8 +78,30 @@ class BashTool(Tool):
                 parts.append(f"[stderr]\n{err}")
             if proc.returncode != 0:
                 parts.append(f"[exit code: {proc.returncode}]")
-            return "\n".join(parts) if parts else "(无输出)"
+            output = "\n".join(parts) if parts else "(无输出)"
+            if proc.returncode == 0:
+                return ToolResult.ok(output, command=command, exit_code=proc.returncode, cwd=cwd)
+            return ToolResult.fail(
+                f"命令执行失败，退出码 {proc.returncode}",
+                output=output,
+                error_code="command_failed",
+                command=command,
+                exit_code=proc.returncode,
+                cwd=cwd,
+            )
         except asyncio.TimeoutError:
-            return f"错误：命令超时（{timeout} 秒）"
+            return ToolResult.fail(
+                f"命令超时（{timeout} 秒）",
+                error_code="timeout",
+                command=command,
+                timeout=timeout,
+                cwd=cwd,
+            )
         except Exception as e:
-            return f"命令执行出错：{e}"
+            return ToolResult.fail(
+                f"命令执行出错：{e}",
+                error_code="command_error",
+                command=command,
+                cwd=cwd,
+                exception_type=type(e).__name__,
+            )
