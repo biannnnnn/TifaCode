@@ -6,8 +6,10 @@ from typing import Any
 
 from tifacode.agent.backend import BackendAdapter, Done, Event, ReasoningDelta, TextDelta, ToolUse, create_backend
 from tifacode.agent.compactor import compact_conversation
+from tifacode.agent.memory import get_memory_store
 from tifacode.agent.messages import Conversation
 from tifacode.agent.permissions import PermissionDecision, decide_tool_permission, permission_cache_key
+from tifacode.agent.semantic_recall import get_semantic_index, recall_relevant_context
 from tifacode.agent.tool_log import record_tool_call
 from tifacode.config.settings import Settings
 from tifacode.tools.base import ToolRegistry
@@ -270,7 +272,53 @@ async def run_agent_loop(
 
         await callbacks.on_turn_end(turn)
 
+        # 4 层压缩流水线
         compact_conversation(conversation, settings)
+
+        # 每 3 轮更新语义索引（增量更新，总成本低）
+        if settings.semantic_recall_enabled and turn % 3 == 0:
+            try:
+                index = get_semantic_index()
+                index.index_conversation(conversation)
+            except Exception:
+                logger.debug("语义索引更新失败", exc_info=True)
+
+        # 跨会话记忆：自动记录涉及文件修改的轮次
+        if settings.cross_session_memory_enabled and tool_uses:
+            try:
+                _auto_memorize(conversation, tool_uses, turn)
+            except Exception:
+                logger.debug("自动记忆保存失败", exc_info=True)
 
     else:
         logger.warning(f"达到最大轮次 {settings.max_turns}，强制停止")
+
+
+def _auto_memorize(conversation: Conversation, tool_uses: dict, turn: int) -> None:
+    """自动记录包含 edit/write 操作的轮次到跨会话记忆。"""
+    modified_files = set()
+    for tu in tool_uses.values():
+        if tu.name in ("edit", "write"):
+            fp = tu.input.get("file_path", "")
+            if fp:
+                modified_files.add(fp)
+
+    if not modified_files:
+        return
+
+    # 提取本轮的用户请求作为上下文
+    user_msg = ""
+    for m in reversed(conversation._messages):
+        if m["role"] == "user":
+            user_msg = str(m.get("content", ""))[:200]
+            break
+
+    store = get_memory_store()
+    key = f"turn-{turn}-{'edit' if 'edit' in [t.name for t in tool_uses.values()] else 'write'}"
+    content = f"修改了 {', '.join(sorted(modified_files)[:5])}。上下文：{user_msg}"
+    store.put(
+        key=key,
+        content=content,
+        tags=list(modified_files)[:5] + ["code_change"],
+        ttl_seconds=86400 * 7,  # 7 天过期
+    )

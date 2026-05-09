@@ -174,6 +174,16 @@ class PromptBuilder:
             sections.append("## Project Rules (CLAUDE.md)")
             sections.append(rules)
 
+        # 跨会话记忆注入
+        if self._settings.cross_session_memory_enabled:
+            try:
+                from tifacode.agent.memory import get_memory_store
+                memories = get_memory_store().inject_into_prompt()
+                if memories:
+                    sections.append(memories)
+            except Exception:
+                pass
+
         workspace = _build_workspace_section()
         sections.append(workspace)
 

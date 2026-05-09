@@ -74,6 +74,12 @@ class Settings:
     compact_token_threshold: int = 40000
     compact_keep_recent_turns: int = 5
     tool_result_snip_limit: int = 4000
+    tool_result_budget_limit: int = 8000
+    compact_context_window: int = 200000
+    compact_micro_threshold: float = 0.50
+    compact_auto_threshold: float = 0.85
+    semantic_recall_enabled: bool = True
+    cross_session_memory_enabled: bool = True
 
     def __post_init__(self) -> None:
         if not self.model:
@@ -184,5 +190,11 @@ def load_settings() -> Settings:
         "compact_token_threshold": int(file_cfg.get("compact_token_threshold", 40000)),
         "compact_keep_recent_turns": int(file_cfg.get("compact_keep_recent_turns", 5)),
         "tool_result_snip_limit": int(file_cfg.get("tool_result_snip_limit", 4000)),
+        "tool_result_budget_limit": int(file_cfg.get("tool_result_budget_limit", 8000)),
+        "compact_context_window": int(file_cfg.get("compact_context_window", 200000)),
+        "compact_micro_threshold": float(file_cfg.get("compact_micro_threshold", 0.50)),
+        "compact_auto_threshold": float(file_cfg.get("compact_auto_threshold", 0.85)),
+        "semantic_recall_enabled": _as_bool(file_cfg.get("semantic_recall_enabled"), True),
+        "cross_session_memory_enabled": _as_bool(file_cfg.get("cross_session_memory_enabled"), True),
     }
     return Settings(**merged)
