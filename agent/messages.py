@@ -120,3 +120,33 @@ class Conversation:
     def get_system_prompt(self) -> str:
         parts = [m["content"] for m in self._messages if m["role"] == "system"]
         return "\n".join(parts)
+
+    def estimate_tokens(self) -> int:
+        total = 0
+        for m in self._messages:
+            content = m.get("content", "")
+            if isinstance(content, list):
+                for block in content:
+                    if isinstance(block, dict):
+                        total += len(str(block)) // 3
+                    else:
+                        total += len(str(block)) // 3
+            else:
+                total += len(str(content)) // 3
+        return total
+
+    def trim_old_tool_results(self, keep_recent: int = 20, snip_limit: int = 4000) -> int:
+        """将旧的 tool_result 替换为摘要，保留最近 N 条完整结果。返回被修剪的消息数。"""
+        tool_indices = [i for i, m in enumerate(self._messages) if m["role"] == "tool"]
+        if len(tool_indices) <= keep_recent:
+            return 0
+
+        trimmed = 0
+        for idx in tool_indices[:-keep_recent]:
+            content = self._messages[idx].get("content", "")
+            if len(content) > snip_limit:
+                head = content[:snip_limit // 2]
+                tail = content[-(snip_limit // 2):]
+                self._messages[idx]["content"] = head + "\n...[truncated]...\n" + tail
+            trimmed += 1
+        return trimmed

@@ -15,6 +15,15 @@ TOOL_RISK = {
     "write": "write",
     "edit": "write",
     "bash": "execute",
+    "list": "read",
+    "grep": "read",
+    "glob": "read",
+    "tree": "read",
+    "todo": "read",
+    "diagnostics": "read",
+    "git_status": "read",
+    "git_diff": "read",
+    "read_many": "read",
 }
 
 

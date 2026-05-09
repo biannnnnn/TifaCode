@@ -67,6 +67,13 @@ class Settings:
     permission_deny_tools: list[str] | None = None
     permission_allow_commands: list[str] | None = None
     permission_deny_commands: list[str] | None = None
+    claude_rules_enabled: bool = True
+    claude_rules_max_lines: int = 200
+    claude_rules_max_depth: int = 5
+    compact_enabled: bool = True
+    compact_token_threshold: int = 40000
+    compact_keep_recent_turns: int = 5
+    tool_result_snip_limit: int = 4000
 
     def __post_init__(self) -> None:
         if not self.model:
@@ -170,5 +177,12 @@ def load_settings() -> Settings:
         "permission_deny_tools": _as_str_list(file_cfg.get("permission_deny_tools")),
         "permission_allow_commands": _as_str_list(file_cfg.get("permission_allow_commands")),
         "permission_deny_commands": _as_str_list(file_cfg.get("permission_deny_commands")),
+        "claude_rules_enabled": _as_bool(file_cfg.get("claude_rules_enabled"), True),
+        "claude_rules_max_lines": int(file_cfg.get("claude_rules_max_lines", 200)),
+        "claude_rules_max_depth": int(file_cfg.get("claude_rules_max_depth", 5)),
+        "compact_enabled": _as_bool(file_cfg.get("compact_enabled"), True),
+        "compact_token_threshold": int(file_cfg.get("compact_token_threshold", 40000)),
+        "compact_keep_recent_turns": int(file_cfg.get("compact_keep_recent_turns", 5)),
+        "tool_result_snip_limit": int(file_cfg.get("tool_result_snip_limit", 4000)),
     }
     return Settings(**merged)

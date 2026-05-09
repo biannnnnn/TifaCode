@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cat ~/.tifacode/config.yaml 2>&1 || echo \"FILE_NOT_FOUND\")",
+      "Read(//Users/bian/.tifacode/**)",
+      "Bash(mkdir -p /Users/bian/Code/TifaCode/prompt && ls /Users/bian/Code/TifaCode/prompt/)"
+    ],
+    "additionalDirectories": [
+      "/Users/bian/Code/TifaCode"
+    ]
+  }
+}

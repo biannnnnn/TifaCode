@@ -27,6 +27,7 @@ from tifacode.agent.messages import Conversation
 from tifacode.agent.permissions import describe_tool_call
 from tifacode.cli.display import render_splash
 from tifacode.config.settings import Settings
+from tifacode.prompt.builder import PromptBuilder
 from tifacode.session.store import SessionStore
 
 logger = logging.getLogger(__name__)
@@ -134,16 +135,18 @@ async def run_interactive(settings: Settings, session_name: str) -> None:
     console = Console()
     store = SessionStore()
 
+    backend = create_backend(settings)
+    registry = create_default_registry(settings)
+
     conversation: Conversation
     if store.exists(session_name):
         conversation = store.load(session_name)
         console.print(f"[dim]已恢复会话 '{session_name}'[/dim]")
     else:
-        conversation = Conversation()
+        builder = PromptBuilder(registry, settings)
+        system_prompt = builder.build()
+        conversation = Conversation(system_prompt=system_prompt)
         console.print(f"[dim]新会话 '{session_name}'[/dim]")
-
-    backend = create_backend(settings)
-    registry = create_default_registry(settings)
 
     # ANSI splash 直接写入 stdout，避免 Rich 处理
     sys.stdout.write(render_splash() + "\n")
@@ -184,12 +187,14 @@ async def run_interactive(settings: Settings, session_name: str) -> None:
             if user_input in ("/exit", "/quit", "/q"):
                 break
             if action == "clear":
-                conversation = Conversation()
+                system_prompt = PromptBuilder(registry, settings).build()
+                conversation = Conversation(system_prompt=system_prompt)
                 store.save(session_name, conversation)
             elif action and action.startswith("new:"):
                 store.save(session_name, conversation)
                 session_name = action.removeprefix("new:")
-                conversation = Conversation()
+                system_prompt = PromptBuilder(registry, settings).build()
+                conversation = Conversation(system_prompt=system_prompt)
                 store.save(session_name, conversation)
                 console.print(f"[dim]已新建并切换到会话 '{session_name}'[/dim]")
             elif action and action.startswith("switch:"):
@@ -223,14 +228,19 @@ async def run_single_shot(settings: Settings, prompt: str, session_name: str) ->
     console = Console()
     store = SessionStore()
 
-    conversation = Conversation()
+    backend = create_backend(settings)
+    registry = create_default_registry(settings)
+
+    conversation: Conversation
     if store.exists(session_name):
         conversation = store.load(session_name)
         console.print(f"[dim]已恢复会话 '{session_name}'[/dim]")
+    else:
+        builder = PromptBuilder(registry, settings)
+        system_prompt = builder.build()
+        conversation = Conversation(system_prompt=system_prompt)
 
     conversation.add_user(prompt)
-    backend = create_backend(settings)
-    registry = create_default_registry(settings)
 
     # ANSI splash 直接写入 stdout，避免 Rich 处理
     sys.stdout.write(render_splash() + "\n")

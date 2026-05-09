@@ -4,6 +4,7 @@ import logging
 from typing import Any
 
 from tifacode.agent.backend import BackendAdapter, Done, Event, ReasoningDelta, TextDelta, ToolUse, create_backend
+from tifacode.agent.compactor import compact_conversation
 from tifacode.agent.messages import Conversation
 from tifacode.agent.permissions import decide_tool_permission, permission_cache_key
 from tifacode.agent.tool_log import record_tool_call
@@ -11,8 +12,16 @@ from tifacode.config.settings import Settings
 from tifacode.tools.base import ToolRegistry
 from tifacode.tools.base import ToolResult
 from tifacode.tools.bash import BashTool
+from tifacode.tools.diagnostics import DiagnosticsTool
 from tifacode.tools.edit import EditTool
+from tifacode.tools.git import GitStatusTool, GitDiffTool
+from tifacode.tools.glob import GlobTool
+from tifacode.tools.grep import GrepTool
+from tifacode.tools.list import ListTool
 from tifacode.tools.read import ReadTool
+from tifacode.tools.read_many import ReadManyTool
+from tifacode.tools.todo import TodoTool
+from tifacode.tools.tree import TreeTool
 from tifacode.tools.write import WriteTool
 
 logger = logging.getLogger(__name__)
@@ -53,6 +62,15 @@ def create_default_registry(settings: Settings | None = None) -> ToolRegistry:
     registry.register(ReadTool())
     registry.register(WriteTool())
     registry.register(EditTool())
+    registry.register(ListTool())
+    registry.register(GrepTool())
+    registry.register(GlobTool())
+    registry.register(TreeTool())
+    registry.register(TodoTool())
+    registry.register(DiagnosticsTool())
+    registry.register(GitStatusTool())
+    registry.register(GitDiffTool())
+    registry.register(ReadManyTool())
     bash_timeout = settings.bash_timeout if settings is not None else 120
     registry.register(BashTool(permission_check=True, default_timeout=bash_timeout))
     return registry
@@ -183,6 +201,8 @@ async def run_agent_loop(
             await callbacks.on_tool_result(tu.name, result_text)
 
         await callbacks.on_turn_end(turn)
+
+        compact_conversation(conversation, settings)
 
     else:
         logger.warning(f"达到最大轮次 {settings.max_turns}，强制停止")
