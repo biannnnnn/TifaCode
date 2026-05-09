@@ -62,10 +62,25 @@ class Settings:
     tool_log_enabled: bool = True
     tool_log_file: str = ""
     tool_log_input_limit: int = 4000
+    permission_mode: str = "default"
+    permission_allow_tools: list[str] | None = None
+    permission_deny_tools: list[str] | None = None
+    permission_allow_commands: list[str] | None = None
+    permission_deny_commands: list[str] | None = None
 
     def __post_init__(self) -> None:
         if not self.model:
             self.model = DEFAULT_MODELS.get(self.provider, "gpt-4o")
+        if self.permission_mode not in ("default", "plan", "acceptEdits", "bypassPermissions", "dontAsk"):
+            self.permission_mode = "default"
+        if self.permission_allow_tools is None:
+            self.permission_allow_tools = []
+        if self.permission_deny_tools is None:
+            self.permission_deny_tools = []
+        if self.permission_allow_commands is None:
+            self.permission_allow_commands = []
+        if self.permission_deny_commands is None:
+            self.permission_deny_commands = []
 
     def set_provider(self, provider: str, reset_model: bool = False) -> None:
         self.provider = provider
@@ -106,6 +121,16 @@ def _as_bool(value: Any, default: bool = False) -> bool:
     return bool(value)
 
 
+def _as_str_list(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [item.strip() for item in value.split(",") if item.strip()]
+    if isinstance(value, list):
+        return [str(item) for item in value]
+    return []
+
+
 PROVIDER_ENV = {
     "anthropic": "ANTHROPIC_API_KEY",
     "openai": "OPENAI_API_KEY",
@@ -140,5 +165,10 @@ def load_settings() -> Settings:
         "tool_log_enabled": _as_bool(file_cfg.get("tool_log_enabled"), True),
         "tool_log_file": file_cfg.get("tool_log_file", ""),
         "tool_log_input_limit": int(file_cfg.get("tool_log_input_limit", 4000)),
+        "permission_mode": file_cfg.get("permission_mode", "default"),
+        "permission_allow_tools": _as_str_list(file_cfg.get("permission_allow_tools")),
+        "permission_deny_tools": _as_str_list(file_cfg.get("permission_deny_tools")),
+        "permission_allow_commands": _as_str_list(file_cfg.get("permission_allow_commands")),
+        "permission_deny_commands": _as_str_list(file_cfg.get("permission_deny_commands")),
     }
     return Settings(**merged)

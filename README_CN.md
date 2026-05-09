@@ -33,6 +33,7 @@ export OPENAI_API_KEY="sk-..."          # OpenAI
 tifacode                                      # 交互模式
 tifacode "列出当前目录下的文件"                   # 单次执行
 tifacode --provider openai                    # 切换后端
+tifacode --permission-mode plan               # 只读规划模式
 tifacode --resume                             # 恢复上次会话
 tifacode --list-sessions                      # 列出已保存会话
 ```
@@ -42,10 +43,74 @@ tifacode --list-sessions                      # 列出已保存会话
 | 命令          | 说明             |
 |---------------|------------------|
 | `/help`       | 显示帮助         |
+| `/new [name]` | 新建并切换到一个会话 |
+| `/switch <name>` | 切换到已有会话 |
 | `/clear`      | 清空当前会话      |
 | `/exit`       | 退出程序         |
 | `/sessions`   | 列出已保存会话    |
 | `/model`      | 显示当前模型      |
+| `/permissions`| 显示当前权限模式  |
+
+### 常用指令
+
+```bash
+# 启动默认交互会话
+tifacode
+
+# 单次执行一个任务
+tifacode "阅读 README 并总结项目"
+
+# 新建或进入指定会话
+tifacode --session refactor-auth
+
+# 列出所有保存的会话
+tifacode --list-sessions
+
+# 恢复最近一次会话
+tifacode --resume
+
+# 选择后端和模型
+tifacode --provider openai --model gpt-4o
+
+# 使用只读规划模式
+tifacode --permission-mode plan
+
+# 允许编辑但 Bash 仍需确认
+tifacode --permission-mode acceptEdits
+```
+
+交互模式常用命令：
+
+```text
+/help                 查看 REPL 命令
+/new bugfix-login     新建并切换到 bugfix-login 会话
+/new                  自动命名新会话
+/switch refactor-auth 切换到已有会话
+/sessions             查看已保存会话
+/permissions          查看当前权限模式
+/clear                清空当前会话
+/exit                 退出
+```
+
+### 权限模式
+
+| 模式 | 行为 |
+|------|------|
+| `default` | 读操作直接允许，写入/编辑/Bash 执行前确认 |
+| `plan` | 只允许读操作，拒绝写入/编辑/Bash |
+| `acceptEdits` | 读/写/编辑直接允许，Bash 执行前确认 |
+| `bypassPermissions` | 跳过工具确认（仍保留工具内部安全拦截） |
+| `dontAsk` | 只允许读操作，拒绝需要确认的工具 |
+
+可在 `~/.tifacode/config.yaml` 中配置：
+
+```yaml
+permission_mode: default
+permission_allow_tools: []
+permission_deny_tools: []
+tool_log_enabled: true
+tool_output_limit: 20000
+```
 
 ## 项目结构
 

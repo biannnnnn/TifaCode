@@ -2,30 +2,39 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 from typing import Any
 
 from tifacode.tools.base import Tool, ToolResult
 
-DANGEROUS_PATTERNS = [
-    "rm -rf /",
-    "rm -rf --no-preserve-root",
-    "sudo rm",
-    "mkfs.",
-    "dd if=",
-    ":(){ :|:& };:",
-    "chmod 777 /",
-    "chmod -R 777 /",
-    "> /dev/sda",
-    "mv / /dev/null",
+DANGEROUS_PATTERNS: list[tuple[str, str]] = [
+    ("rm_root", r"\brm\s+.*-[^\s]*r[^\s]*f[^\s]*\s+/(?:\s|$)"),
+    ("rm_no_preserve_root", r"\brm\s+.*--no-preserve-root"),
+    ("sudo_rm", r"\bsudo\s+rm\b"),
+    ("mkfs", r"\bmkfs(?:\.[\w-]+)?\b"),
+    ("dd_raw_disk", r"\bdd\s+.*\bof=/dev/(?:sd|hd|vd|nvme|disk)\w*"),
+    ("fork_bomb", r":\(\)\s*\{\s*:\|:&\s*\};:"),
+    ("chmod_root_world_writable", r"\bchmod\s+(?:-R\s+)?777\s+/"),
+    ("chown_root_recursive", r"\bchown\s+-R\s+[^ ]+\s+/"),
+    ("write_block_device", r">\s*/dev/(?:sd|hd|vd|nvme|disk)\w*"),
+    ("move_root", r"\bmv\s+/\s+/dev/null\b"),
+    ("wipe_home", r"\brm\s+.*-[^\s]*r[^\s]*f[^\s]*\s+(?:~|\$HOME)(?:/|\s|$)"),
+    ("wipe_current_dir", r"\brm\s+.*-[^\s]*r[^\s]*f[^\s]*\s+\.(?:\s|$)"),
+    ("shred_recursive", r"\bshred\s+.*(?:/dev/|/|\$HOME|~)"),
+    ("disk_erase_macos", r"\bdiskutil\s+(?:eraseDisk|partitionDisk|apfs\s+deleteContainer)\b"),
+    ("linux_block_wipe", r"\b(?:wipefs|blkdiscard)\s+.*?/dev/"),
+    ("shutdown_reboot", r"\b(?:shutdown|reboot|halt|poweroff)\b"),
+    ("kill_all", r"\bkillall\s+(?:-9\s+)?(?:python|node|zsh|bash|sh|loginwindow|systemd)\b"),
+    ("curl_pipe_shell", r"\b(?:curl|wget)\b.+\|\s*(?:sudo\s+)?(?:sh|bash)\b"),
 ]
 
 
 def is_dangerous(command: str) -> str | None:
     """检查命令是否包含危险操作，返回危险模式描述或 None。"""
     lower = command.lower().strip()
-    for pattern in DANGEROUS_PATTERNS:
-        if pattern in lower:
-            return pattern
+    for name, pattern in DANGEROUS_PATTERNS:
+        if re.search(pattern, lower):
+            return name
     return None
 
 

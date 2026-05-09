@@ -5,6 +5,7 @@ from typing import Any
 
 from tifacode.agent.backend import BackendAdapter, Done, Event, ReasoningDelta, TextDelta, ToolUse, create_backend
 from tifacode.agent.messages import Conversation
+from tifacode.agent.permissions import decide_tool_permission, permission_cache_key
 from tifacode.agent.tool_log import record_tool_call
 from tifacode.config.settings import Settings
 from tifacode.tools.base import ToolRegistry
@@ -36,6 +37,16 @@ class AgentCallbacks:
         """确认 bash 命令执行。返回 True 允许，False 拒绝。"""
         return True
 
+    async def on_confirm_tool(self, name: str, tool_input: dict[str, Any], reason: str) -> bool:
+        """确认高风险工具执行。返回 True 允许，False 拒绝。"""
+        if name == "bash":
+            return await self.on_confirm_bash(str(tool_input.get("command", "")))
+        return True
+
+    async def on_remember_permission(self, name: str, tool_input: dict[str, Any]) -> bool:
+        """确认是否在本会话内记住同一工具调用。"""
+        return False
+
 
 def create_default_registry(settings: Settings | None = None) -> ToolRegistry:
     registry = ToolRegistry()
@@ -56,6 +67,7 @@ async def run_agent_loop(
 ) -> None:
     """执行 Agent 主循环：LLM 调用 → 工具执行 → 循环，直到模型不再调用工具或达到最大轮次。"""
     tools = registry.get_schemas()
+    approved_tool_calls: set[str] = set()
 
     for turn in range(1, settings.max_turns + 1):
         logger.info(f"第 {turn} 轮对话开始")
@@ -102,25 +114,53 @@ async def run_agent_loop(
         for tu in tool_uses.values():
             await callbacks.on_tool_call(tu.name, tu.input)
 
-            # bash 命令需确认
-            if tu.name == "bash":
-                command = tu.input.get("command", "")
-                allowed = await callbacks.on_confirm_bash(command)
-                if not allowed:
-                    result = ToolResult.fail("用户拒绝了此命令的执行", error_code="permission_denied", command=command)
-                    result_text = result.to_text(settings.tool_output_limit)
-                    record_tool_call(
-                        settings,
-                        turn=turn,
-                        tool_use_id=tu.id,
-                        name=tu.name,
-                        tool_input=tu.input,
-                        result=result,
-                        rendered_text=result_text,
-                    )
-                    conversation.add_tool_result(tu.id, result_text)
-                    await callbacks.on_tool_result(tu.name, result_text)
-                    continue
+            decision = decide_tool_permission(settings, tu.name, tu.input)
+            if not decision.allowed:
+                result = ToolResult.fail(
+                    decision.reason or "权限系统拒绝了此工具调用",
+                    error_code="permission_denied",
+                    permission_mode=settings.permission_mode,
+                )
+                result_text = result.to_text(settings.tool_output_limit)
+                record_tool_call(
+                    settings,
+                    turn=turn,
+                    tool_use_id=tu.id,
+                    name=tu.name,
+                    tool_input=tu.input,
+                    result=result,
+                    rendered_text=result_text,
+                )
+                conversation.add_tool_result(tu.id, result_text)
+                await callbacks.on_tool_result(tu.name, result_text)
+                continue
+
+            if decision.needs_confirmation:
+                cache_key = permission_cache_key(tu.name, tu.input)
+                if cache_key not in approved_tool_calls:
+                    allowed = await callbacks.on_confirm_tool(tu.name, tu.input, decision.reason)
+                    if not allowed:
+                        result = ToolResult.fail(
+                            "用户拒绝了此工具调用",
+                            error_code="permission_denied",
+                            permission_mode=settings.permission_mode,
+                        )
+                        result_text = result.to_text(settings.tool_output_limit)
+                        record_tool_call(
+                            settings,
+                            turn=turn,
+                            tool_use_id=tu.id,
+                            name=tu.name,
+                            tool_input=tu.input,
+                            result=result,
+                            rendered_text=result_text,
+                        )
+                        conversation.add_tool_result(tu.id, result_text)
+                        await callbacks.on_tool_result(tu.name, result_text)
+                        continue
+                    remember = await callbacks.on_remember_permission(tu.name, tu.input)
+                    if remember:
+                        approved_tool_calls.add(cache_key)
 
             result = await registry.execute(tu.name, tu.input)
             result_text = result.to_text(settings.tool_output_limit)

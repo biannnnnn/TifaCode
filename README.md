@@ -34,6 +34,7 @@ export OPENAI_API_KEY="sk-..."          # OpenAI
 tifacode                                      # interactive REPL
 tifacode "List files in current directory"    # single-shot
 tifacode --provider openai                    # switch backend
+tifacode --permission-mode plan               # read-only planning mode
 tifacode --resume                             # resume last session
 tifacode --list-sessions                      # list saved sessions
 ```
@@ -43,10 +44,74 @@ tifacode --list-sessions                      # list saved sessions
 | Command       | Description        |
 |---------------|--------------------|
 | `/help`       | Show help          |
+| `/new [name]` | Create and switch to a session |
+| `/switch <name>` | Switch to an existing session |
 | `/clear`      | Clear session      |
 | `/exit`       | Quit               |
 | `/sessions`   | List saved sessions|
 | `/model`      | Show current model |
+| `/permissions`| Show permission mode |
+
+### Common Commands
+
+```bash
+# Start the default interactive session
+tifacode
+
+# Run a single task
+tifacode "Read README and summarize the project"
+
+# Create or enter a named session
+tifacode --session refactor-auth
+
+# List saved sessions
+tifacode --list-sessions
+
+# Resume the latest session
+tifacode --resume
+
+# Select provider and model
+tifacode --provider openai --model gpt-4o
+
+# Use read-only planning mode
+tifacode --permission-mode plan
+
+# Allow edits while Bash still requires confirmation
+tifacode --permission-mode acceptEdits
+```
+
+Common interactive commands:
+
+```text
+/help                 Show REPL commands
+/new bugfix-login     Create and switch to bugfix-login
+/new                  Create an auto-named session
+/switch refactor-auth Switch to an existing session
+/sessions             List saved sessions
+/permissions          Show permission mode
+/clear                Clear the current session
+/exit                 Quit
+```
+
+### Permission Modes
+
+| Mode | Behavior |
+|------|----------|
+| `default` | Read tools are allowed; write/edit/Bash require confirmation |
+| `plan` | Only read tools are allowed; write/edit/Bash are denied |
+| `acceptEdits` | Read/write/edit are allowed; Bash requires confirmation |
+| `bypassPermissions` | Skips tool confirmation while keeping built-in tool safety checks |
+| `dontAsk` | Only read tools are allowed; tools requiring confirmation are denied |
+
+Example `~/.tifacode/config.yaml`:
+
+```yaml
+permission_mode: default
+permission_allow_tools: []
+permission_deny_tools: []
+tool_log_enabled: true
+tool_output_limit: 20000
+```
 
 ## Project Structure
 

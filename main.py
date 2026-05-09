@@ -19,6 +19,11 @@ def main() -> None:
     parser.add_argument("--session", "-s", default="default", help="会话名称（默认 default）")
     parser.add_argument("--model", "-m", help="模型名称")
     parser.add_argument("--provider", "-p", choices=["anthropic", "openai", "deepseek"], help="LLM 后端")
+    parser.add_argument(
+        "--permission-mode",
+        choices=["default", "plan", "acceptEdits", "bypassPermissions", "dontAsk"],
+        help="权限模式",
+    )
     parser.add_argument("--resume", "-r", action="store_true", help="恢复上次会话")
     parser.add_argument("--list-sessions", action="store_true", help="列出已保存的会话")
     parser.add_argument("--debug", action="store_true", help="启用调试日志")
@@ -44,6 +49,8 @@ def main() -> None:
         settings.model = args.model
     if args.provider:
         settings.set_provider(args.provider, reset_model=not bool(args.model))
+    if args.permission_mode:
+        settings.permission_mode = args.permission_mode
 
     session_name = args.session
     if args.resume:
