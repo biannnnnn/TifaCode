@@ -10,7 +10,7 @@ A lightweight local Coding Agent CLI for long-running, multi-step programming ta
 ## Features
 
 - **Multi-Provider Agent Loop** — Anthropic / OpenAI / DeepSeek backends, streaming responses, multi-turn tool execution
-- **Rich CLI** — Interactive REPL with multi-line input (Enter for newline, Alt+Enter to send), Markdown streaming display, ANSI splash screen
+- **Rich CLI** — Interactive REPL with multi-line input (Enter to send, Shift+Enter for newline), Markdown streaming display, ANSI splash screen
 - **4 Core Tools** — Read, write, edit files + Bash shell commands
 - **Permission System** — Dangerous command blocklist, user confirmation for bash execution
 - **Session Management** — Save/load named sessions to `~/.tifacode/sessions/`, resume interrupted work

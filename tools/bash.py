@@ -32,6 +32,7 @@ def is_dangerous(command: str) -> str | None:
 class BashTool(Tool):
     name = "bash"
     description = "执行 Shell 命令。命令有 120 秒超时限制。危险命令（如 rm -rf /）将被拒绝。"
+    required_parameters = ["command"]
     parameters = {
         "command": {
             "type": "string",
@@ -43,10 +44,12 @@ class BashTool(Tool):
         },
     }
 
-    def __init__(self, permission_check: bool = True) -> None:
+    def __init__(self, permission_check: bool = True, default_timeout: int = 120) -> None:
         self._permission_check = permission_check
+        self._default_timeout = default_timeout
 
-    async def execute(self, command: str, timeout: int = 120, **kwargs: Any) -> str:
+    async def execute(self, command: str, timeout: int | None = None, **kwargs: Any) -> str:
+        timeout = timeout or self._default_timeout
         dangerous = is_dangerous(command)
         if dangerous:
             return f"安全拦截：命令包含危险模式 '{dangerous}'，已拒绝执行"

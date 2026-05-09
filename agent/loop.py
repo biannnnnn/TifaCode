@@ -35,12 +35,13 @@ class AgentCallbacks:
         return True
 
 
-def create_default_registry() -> ToolRegistry:
+def create_default_registry(settings: Settings | None = None) -> ToolRegistry:
     registry = ToolRegistry()
     registry.register(ReadTool())
     registry.register(WriteTool())
     registry.register(EditTool())
-    registry.register(BashTool(permission_check=True))
+    bash_timeout = settings.bash_timeout if settings is not None else 120
+    registry.register(BashTool(permission_check=True, default_timeout=bash_timeout))
     return registry
 
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -58,6 +58,11 @@ class Settings:
     def __post_init__(self) -> None:
         if not self.model:
             self.model = DEFAULT_MODELS.get(self.provider, "gpt-4o")
+
+    def set_provider(self, provider: str, reset_model: bool = False) -> None:
+        self.provider = provider
+        if reset_model:
+            self.model = DEFAULT_MODELS.get(provider, "gpt-4o")
 
     @property
     def anthropic_api_key(self) -> str:

@@ -9,6 +9,7 @@ from tifacode.tools.base import Tool
 class EditTool(Tool):
     name = "edit"
     description = "精确字符串替换编辑文件。将 old_string 替换为 new_string，若 old_string 不唯一且未设置 replace_all 则报错。"
+    required_parameters = ["file_path", "old_string", "new_string"]
     parameters = {
         "file_path": {
             "type": "string",

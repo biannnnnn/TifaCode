@@ -43,12 +43,14 @@ def main() -> None:
     if args.model:
         settings.model = args.model
     if args.provider:
-        settings.provider = args.provider
+        settings.set_provider(args.provider, reset_model=not bool(args.model))
 
     session_name = args.session
     if args.resume:
-        # 如果指定了 --resume，保留 session_name（可能是 default 或用户指定的）
-        pass
+        store = SessionStore()
+        latest = store.latest_session_name()
+        if latest and args.session == "default":
+            session_name = latest
 
     if args.prompt:
         asyncio.run(run_single_shot(settings, args.prompt, session_name))

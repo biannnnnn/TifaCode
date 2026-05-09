@@ -17,6 +17,9 @@ class SessionStore:
         safe = name.replace("/", "_").replace("\\", "_")
         return self._dir / f"{safe}.json"
 
+    def exists(self, name: str) -> bool:
+        return self._path(name).exists()
+
     def save(self, name: str, conversation: Conversation) -> None:
         data = {
             "session_name": name,
@@ -43,3 +46,13 @@ class SessionStore:
             except Exception:
                 sessions.append(name)
         return sessions
+
+    def list_session_names(self) -> list[str]:
+        return sorted(f.stem for f in self._dir.glob("*.json"))
+
+    def latest_session_name(self) -> str | None:
+        files = list(self._dir.glob("*.json"))
+        if not files:
+            return None
+        latest = max(files, key=lambda f: f.stat().st_mtime)
+        return latest.stem

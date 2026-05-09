@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 _PT_STYLE = Style.from_dict({
     "prompt": "bold green",
-    "bottom-toolbar": "dim italic",
+    "bottom-toolbar": "italic",
 })
 
 
@@ -43,21 +43,16 @@ def _create_pt_session() -> PromptSession:
         """Enter 发送当前输入。"""
         event.app.exit(result=event.app.current_buffer.text)
 
-    @bindings.add("c-j")
+    @bindings.add("escape", "enter")
     def _(event: Any) -> None:
-        """Ctrl+J 换行。"""
+        """Shift+Enter 换行。"""
         event.app.current_buffer.insert_text("\n")
-
-    @bindings.add("c-c")
-    def _(event: Any) -> None:
-        """Ctrl+C 取消当前输入。"""
-        event.app.exit(result=None)
 
     return PromptSession(
         multiline=True,
         key_bindings=bindings,
         style=_PT_STYLE,
-        bottom_toolbar=" Enter 发送  |  Ctrl+J 换行  |  Ctrl+C 取消  |  输入 exit 退出 ",
+        bottom_toolbar=" Enter 发送  |  Shift+Enter 换行  |  输入 exit 退出 ",
         wrap_lines=False,
     )
 
@@ -114,7 +109,7 @@ async def run_interactive(settings: Settings, session_name: str) -> None:
     store = SessionStore()
 
     conversation: Conversation
-    if session_name in store.list_sessions():
+    if store.exists(session_name):
         conversation = store.load(session_name)
         console.print(f"[dim]已恢复会话 '{session_name}'[/dim]")
     else:
@@ -122,7 +117,7 @@ async def run_interactive(settings: Settings, session_name: str) -> None:
         console.print(f"[dim]新会话 '{session_name}'[/dim]")
 
     backend = create_backend(settings)
-    registry = create_default_registry()
+    registry = create_default_registry(settings)
 
     # ANSI splash 直接写入 stdout，避免 Rich 处理
     sys.stdout.write(render_splash() + "\n")
@@ -147,7 +142,7 @@ async def run_interactive(settings: Settings, session_name: str) -> None:
         # 底部边框
         console.print("└" + "─" * (w - 2) + "┘", style="dim")
 
-        if user_input is None:  # Ctrl+C 取消
+        if user_input is None:
             continue
 
         user_input = user_input.strip()
@@ -159,9 +154,12 @@ async def run_interactive(settings: Settings, session_name: str) -> None:
             break
 
         if user_input.startswith("/"):
-            _handle_slash_command(user_input, console)
+            action = _handle_slash_command(user_input, console, settings)
             if user_input in ("/exit", "/quit", "/q"):
                 break
+            if action == "clear":
+                conversation = Conversation()
+                store.save(session_name, conversation)
             continue
 
         conversation.add_user(user_input)
@@ -185,13 +183,13 @@ async def run_single_shot(settings: Settings, prompt: str, session_name: str) ->
     store = SessionStore()
 
     conversation = Conversation()
-    if session_name in store.list_sessions():
+    if store.exists(session_name):
         conversation = store.load(session_name)
         console.print(f"[dim]已恢复会话 '{session_name}'[/dim]")
 
     conversation.add_user(prompt)
     backend = create_backend(settings)
-    registry = create_default_registry()
+    registry = create_default_registry(settings)
 
     # ANSI splash 直接写入 stdout，避免 Rich 处理
     sys.stdout.write(render_splash() + "\n")
@@ -211,7 +209,7 @@ async def run_single_shot(settings: Settings, prompt: str, session_name: str) ->
     store.save(session_name, conversation)
 
 
-def _handle_slash_command(cmd: str, console: Console) -> None:
+def _handle_slash_command(cmd: str, console: Console, settings: Settings) -> str | None:
     parts = cmd.split(maxsplit=1)
     name = parts[0].lower()
 
@@ -232,6 +230,7 @@ def _handle_slash_command(cmd: str, console: Console) -> None:
         )
     elif name == "/clear":
         console.print("[dim]会话已清空（下次输入将开始新对话）[/dim]")
+        return "clear"
     elif name == "/sessions":
         store = SessionStore()
         sessions = store.list_sessions()
@@ -240,8 +239,7 @@ def _handle_slash_command(cmd: str, console: Console) -> None:
         else:
             console.print("[dim]无已保存的会话[/dim]")
     elif name == "/model":
-        from tifacode.config.settings import load_settings
-        s = load_settings()
-        console.print(f"  provider: {s.provider}\n  model: {s.model}")
+        console.print(f"  provider: {settings.provider}\n  model: {settings.model}")
     else:
         console.print(f"[dim]未知命令: {name}，输入 /help 查看帮助[/dim]")
+    return None

@@ -9,6 +9,7 @@ from tifacode.tools.base import Tool
 class ReadTool(Tool):
     name = "read"
     description = "读取文件内容。支持通过 offset/limit 指定行号范围。"
+    required_parameters = ["file_path"]
     parameters = {
         "file_path": {
             "type": "string",

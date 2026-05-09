@@ -9,7 +9,7 @@
 ## 功能
 
 - **多后端 Agent 循环** — 兼容 Anthropic / OpenAI / DeepSeek 后端，流式响应，多轮工具调用
-- **Rich CLI 界面** — 交互式 REPL，多行输入（Enter 换行，Alt+Enter 发送），Markdown 流式渲染，ANSI 彩色启动画面
+- **Rich CLI 界面** — 交互式 REPL，多行输入（Enter 发送，Shift+Enter 换行），Markdown 流式渲染，ANSI 彩色启动画面
 - **4 个核心工具** — 读取文件、写入文件、编辑文件、执行 Bash 命令
 - **权限系统** — 危险命令黑名单拦截，Bash 命令执行前需用户确认
 - **会话管理** — 命名会话保存至 `~/.tifacode/sessions/`，支持中断恢复

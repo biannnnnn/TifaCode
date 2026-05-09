@@ -8,19 +8,23 @@ class Tool(ABC):
     name: str
     description: str
     parameters: dict[str, Any]
+    required_parameters: list[str] | None = None
 
     @abstractmethod
     async def execute(self, **kwargs: Any) -> str:
         ...
 
     def to_schema(self) -> dict[str, Any]:
+        required = self.required_parameters
+        if required is None:
+            required = list(self.parameters.keys())
         return {
             "name": self.name,
             "description": self.description,
             "input_schema": {
                 "type": "object",
                 "properties": self.parameters,
-                "required": list(self.parameters.keys()),
+                "required": required,
             },
         }
 
