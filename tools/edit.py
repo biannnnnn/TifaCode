@@ -4,11 +4,12 @@ from pathlib import Path
 from typing import Any
 
 from tifacode.tools.base import Tool, ToolResult
+from tifacode.tools.filetracker import get_file_tracker
 
 
 class EditTool(Tool):
     name = "edit"
-    description = "精确字符串替换编辑文件。将 old_string 替换为 new_string，若 old_string 不唯一且未设置 replace_all 则报错。"
+    description = "精确字符串替换编辑文件。编辑前会校验 mtime：若文件在 read 后被外部修改，则拒绝编辑。"
     required_parameters = ["file_path", "old_string", "new_string"]
     parameters = {
         "file_path": {
@@ -36,6 +37,19 @@ class EditTool(Tool):
         if not p.exists():
             return ToolResult.fail(f"文件不存在 '{file_path}'", error_code="file_not_found", file_path=file_path)
 
+        # mtime 校验：检查文件是否在上次 read 后被外部修改
+        tracker = get_file_tracker()
+        is_stale, last_mtime, cur_mtime = tracker.check_stale(file_path)
+        if is_stale:
+            return ToolResult.fail(
+                f"文件自上次读取后已被外部修改（read mtime={last_mtime:.3f}, current mtime={cur_mtime:.3f}）。"
+                f"请先 read 该文件获取最新内容，再重新编辑。",
+                error_code="stale_file",
+                file_path=file_path,
+                last_mtime=last_mtime,
+                current_mtime=cur_mtime,
+            )
+
         try:
             content = p.read_text(encoding="utf-8")
         except Exception as e:
@@ -61,6 +75,8 @@ class EditTool(Tool):
         try:
             p.write_text(new_content, encoding="utf-8")
             replaced = count if replace_all else 1
+            # 写入后更新追踪的 mtime，避免后续自编辑被拦截
+            tracker.record_read(file_path)
             return ToolResult.ok(f"已替换 {replaced} 处匹配", file_path=file_path, replaced=replaced)
         except Exception as e:
             return ToolResult.fail(

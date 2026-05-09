@@ -4,11 +4,12 @@ from pathlib import Path
 from typing import Any
 
 from tifacode.tools.base import Tool, ToolResult
+from tifacode.tools.filetracker import get_file_tracker
 
 
 class ReadTool(Tool):
     name = "read"
-    description = "读取文件内容。支持通过 offset/limit 指定行号范围。"
+    description = "读取文件内容。支持通过 offset/limit 指定行号范围。读取后追踪文件 mtime，供后续 edit/write 校验。"
     required_parameters = ["file_path"]
     parameters = {
         "file_path": {
@@ -42,6 +43,10 @@ class ReadTool(Tool):
                 exception_type=type(e).__name__,
             )
 
+        # 记录文件读取时的 mtime
+        tracker = get_file_tracker()
+        mtime = tracker.record_read(file_path)
+
         total = len(lines)
         start = max(0, offset - 1) if offset > 0 else 0
         end = min(total, start + limit) if limit > 0 else total
@@ -56,4 +61,5 @@ class ReadTool(Tool):
             total_lines=total,
             start_line=start + 1,
             returned_lines=len(selected),
+            mtime=mtime,
         )

@@ -87,12 +87,27 @@ class Tool(ABC):
 class ToolRegistry:
     def __init__(self) -> None:
         self._tools: dict[str, Tool] = {}
+        self._tiers: dict[str, int] = {}  # name -> tier
+        self._active_tier: int = 1
 
-    def register(self, tool: Tool) -> None:
+    def register(self, tool: Tool, tier: int = 1) -> None:
         self._tools[tool.name] = tool
+        self._tiers[tool.name] = tier
 
-    def get_schemas(self) -> list[dict[str, Any]]:
-        return [t.to_schema() for t in self._tools.values()]
+    def set_active_tier(self, tier: int) -> None:
+        self._active_tier = tier
+
+    @property
+    def active_tier(self) -> int:
+        return self._active_tier
+
+    def get_schemas(self, tier: int | None = None) -> list[dict[str, Any]]:
+        t = tier if tier is not None else self._active_tier
+        return [
+            tool.to_schema()
+            for name, tool in self._tools.items()
+            if self._tiers.get(name, 1) <= t
+        ]
 
     def get(self, name: str) -> Tool | None:
         return self._tools.get(name)
